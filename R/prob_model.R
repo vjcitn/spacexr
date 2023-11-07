@@ -50,13 +50,59 @@ set_likelihood_vars_sigma <- function(sigma) {
 }
 
 get_Q_all <- function() {
-  Q1 <- readRDS(system.file("extdata", "Qmat/Q_mat_1.rds", package = "spacexr"))
-  Q2 <- readRDS(system.file("extdata", "Qmat/Q_mat_2.rds", package = "spacexr"))
-  Q3 <- readRDS(system.file("extdata", "Qmat/Q_mat_3.rds", package = "spacexr"))
-  Q4 <- readRDS(system.file("extdata", "Qmat/Q_mat_4.rds", package = "spacexr"))
-  Q5 <- readRDS(system.file("extdata", "Qmat/Q_mat_5.rds", package = "spacexr"))
-  Q_mat_all <- c(Q1, Q2, Q3, Q4, Q5)
+  #Q1 <- readRDS(system.file("extdata", "Qmat/Q_mat_1.rds", package = "spacexr"))
+  #Q2 <- readRDS(system.file("extdata", "Qmat/Q_mat_2.rds", package = "spacexr"))
+  #Q3 <- readRDS(system.file("extdata", "Qmat/Q_mat_3.rds", package = "spacexr"))
+  #Q4 <- readRDS(system.file("extdata", "Qmat/Q_mat_4.rds", package = "spacexr"))
+  #Q5 <- readRDS(system.file("extdata", "Qmat/Q_mat_5.rds", package = "spacexr"))
+  #Q_mat_all <- c(Q1, Q2, Q3, Q4, Q5)
+  Q_all_from_cache(BiocFileCache::BiocFileCache())
 }
+
+#' check that a URL can get a 200 for a HEAD request
+#' @param url character(1)
+#' @return logical(1)
+url_ok = function(url) {
+  httr::status_code(httr::HEAD(url)) == 200
+}
+
+remoteqloc = function(n) {
+    sprintf("https://mghp.osn.xsede.org/bir190004-bucket01/BiocRCTD/Q_mat_%d.rds", n)
+    }
+
+#' place Q_matrix elements in cache, retrieving from Bioconductor Open Storage Network
+#' @param cache instance of BiocFileCache::BiocFileCache
+#' @return list of bfcadd results
+#' @export
+cache_Q_all = function(cache=BiocFileCache::BiocFileCache()) {
+  if (!url_ok(remoteqloc(1L))) stop(sprintf("can't retrieve header status 200 for %s\n",
+     remoteqloc(1L)))
+  ans = vector("list", 5L)
+  for (i in seq_len(5)) 
+    ans[[i]] = BiocFileCache::bfcadd(cache, rname=remoteqloc(i), rtype="web")
+  ans
+}
+
+verify_Q_cache = function(cache=BiocFileCache::BiocFileCache()) {
+  goals = vapply(1:5, remoteqloc, character(1))
+  ids = vapply(goals, function(x) BiocFileCache::bfcquery(cache, x)$rpath, character(1))
+  all(vapply(ids, file.exists, logical(1)))
+}
+
+#' retrieve Q_mats from cache, after they have been installed using cache_Q_all
+#' @param cache instance of BiocFileCache::BiocFileCache
+#' @return list of matrices
+#' @export
+Q_all_from_cache = function(cache=BiocFileCache::BiocFileCache()) {
+  if (!verify_Q_cache(cache=cache)) stop("verify_Q_cache failed; run cache_Q_all() first")
+  paths = vapply(1:5, function(x) BiocFileCache::bfcquery(cache, remoteqloc(x))$rpath, character(1))
+  unlist(lapply(paths, readRDS), recursive=FALSE)
+}
+  
+  
+
+#retrieve_Q_all = function(cache=BiocFileCache::BiocFileCache()) {
+  
 
 ht_pdf <- function(z, sigma) {
   x = z/sigma
